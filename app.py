@@ -8,42 +8,53 @@ st.write("Автоматическая раскладка на этикетку 
 
 uploaded_file = st.file_uploader("Загрузите PDF файл", type=["pdf"])
 
-# Контейнер с настройками сетки и оформления
+# Контейнер с гибкими настройками
 with st.container():
     st.subheader("Настройки раскладки")
     
-    col1, col2 = st.columns(2)
+    copies = st.number_input(
+        "Сколько копий каждого штрихкода сделать?", 
+        min_value=1, 
+        value=1, 
+        step=1
+    )
     
-    with col1:
-        copies = st.number_input(
-            "Сколько копий каждого штрихкода сделать?", 
+    st.write("---")
+    st.markdown("**Настройка сетки на листе (75х120 мм):**")
+    
+    col_width, col_height = st.columns(2)
+    
+    with col_width:
+        cols = st.number_input(
+            "Штрихкодов по ШИРИНЕ (колонки):", 
             min_value=1, 
-            value=1, 
+            max_value=10, 
+            value=2, 
             step=1
         )
         
-    with col2:
-        grid_option = st.selectbox(
-            "Количество штрихкодов на 1 листе:",
-            options=["8 штук (2x4)", "10 штук (2x5)"]
+    with col_height:
+        rows = st.number_input(
+            "Штрихкодов по ВЫСОТЕ (строки):", 
+            min_value=1, 
+            max_value=15, 
+            value=4, 
+            step=1
         )
+        
+    items_per_page = cols * rows
+    st.caption(f"Итого на одном листе получится: **{items_per_page} шт.**")
 
     draw_border = st.checkbox("Добавить чёрную рамочку вокруг каждого штрихкода", value=False)
 
 if uploaded_file is not None:
     if st.button("Сформировать PDF", type="primary"):
-        # Размеры в pt (75x120 мм)
+        # Размеры холста в пунктах PDF (75x120 мм)
         page_w, page_h = 75 * 2.83465, 120 * 2.83465
         
-        # Определяем параметры сетки в зависимости от выбора
-        if "10" in grid_option:
-            cols, rows = 2, 5
-            items_per_page = 10
-        else:
-            cols, rows = 2, 4
-            items_per_page = 8
-            
-        cell_w, cell_h = page_w / cols, page_h / rows
+        # Автоматический расчёт размера ячейки под выбранную сетку
+        cell_w = page_w / cols
+        cell_h = page_h / rows
         
         src_doc = fitz.open(stream=uploaded_file.read(), filetype="pdf")
         
@@ -56,7 +67,7 @@ if uploaded_file is not None:
         out_doc = fitz.open()
         total_items = len(all_pages)
         
-        # Нарезаем по ячейкам на холст 75х120 мм
+        # Заполнение сетки
         for i in range(0, total_items, items_per_page):
             chunk = all_pages[i:i + items_per_page]
             out_page = out_doc.new_page(width=page_w, height=page_h)
@@ -71,7 +82,7 @@ if uploaded_file is not None:
                 # Вставляем штрихкод
                 out_page.show_pdf_page(rect, src_doc, src_page_idx)
                 
-                # Если включена галочка — рисуем чёрную рамку вокруг ячейки
+                # Рисуем рамку, если включена галочка
                 if draw_border:
                     out_page.draw_rect(rect, color=(0, 0, 0), width=0.8)
                 
